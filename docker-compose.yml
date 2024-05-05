@@ -1,0 +1,37 @@
+services:
+  mysql-server:
+    image: mysql:latest
+    container_name: mysql-server
+    networks:
+      - mysql-net
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: proj_2
+      MYSQL_USER: proj_2_user
+      MYSQL_PASSWORD: sql_password
+
+  express-server:
+    build: .
+    command: ["npm", "start"]
+    container_name: express-server
+    networks:
+      - mysql-net
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql-server
+    environment:
+      MYSQL_HOST: mysql-server
+      MYSQL_USER: proj_2_user
+      MYSQL_PASSWORD: sql_password
+      MYSQL_DATABASE: proj_2
+      MYSQL_PORT: 3306
+
+networks:
+  mysql-net:
+    name: mysql-net
+    driver: bridge
+
+

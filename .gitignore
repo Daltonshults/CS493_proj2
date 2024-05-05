@@ -1,1 +1,5 @@
 node_modules/
+server_schema*
+remove_dockers.sh
+wait-for-it.sh
+curl-commands.txt
