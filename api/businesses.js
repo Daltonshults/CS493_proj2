@@ -11,16 +11,6 @@ const mysql = require('mysql2/promise');
 exports.router = router;
 exports.businesses = businesses;
 
-// const mysqlPool = mysql.createPool({
-//   connectionLimit: 10,
-//   host: process.env.MYSQL_HOST || "mysql-server",
-//   port: process.env.MYSQL_PORT || 3306,
-//   database: process.env.MYSQL_DATABASE || "proj_2",
-//   user: process.env.MYSQL_USER || "proj_2_user",
-//   password: process.env.MYSQL_PASSWORD ||"sql_password",
-// })
-
-// mysqlPool.query = util.promisify(mysqlPool.query);
 /*
  * Schema describing required/optional fields of a business object.
  */
@@ -37,6 +27,7 @@ const businessSchema = {
   email: { required: false }
 };
 
+
 router.get('/', async function (req, res) {
   const page = parseInt(req.query.page) || 1;
   const numPerPage = 10;
@@ -47,7 +38,20 @@ router.get('/', async function (req, res) {
     const totalCount = countResults[0].count;
     const lastPage = Math.ceil(totalCount / numPerPage);
 
-    const [results] = await getPool().query('SELECT * FROM Businesses ORDER BY BusinessID LIMIT ?,?', [offset, numPerPage]);
+    const [results] = await getPool().query('SELECT * FROM Businesses ORDER BY BusinessID LIMIT ?,?',
+                                        [offset, numPerPage]);
+
+    for (let i = 0; i < results.length; i++) {
+      const business = results[i];
+
+      const [photos] = await getPool().query('SELECT * FROM Photos WHERE BusinessID = ?',
+                                          [business.BusinessID]);
+      business.photos = photos;
+
+      const [reviews] = await getPool().query('SELECT * FROM Reviews WHERE BusinessID = ?',
+                                          [business.BusinessID]);
+      business.reviews = reviews;
+    }
 
     const links = {};
     if (page < lastPage) {
@@ -58,7 +62,7 @@ router.get('/', async function (req, res) {
       links.prevPage = `/businesses?page=${page - 1}`;
       links.firstPage = '/businesses?page=1';
     }
-    // console.log(`PAGE ${page}`);
+
     res.status(200).json({
       businesses: results,
       pageNumber: page,
@@ -73,7 +77,6 @@ router.get('/', async function (req, res) {
   }
 });
 
-
 /*
  * Route to create a new business.
  */
@@ -87,13 +90,11 @@ router.post('/', async function (req, res, next) {
         [business.ownerid, business.name, business.address, business.city, business.state, business.zip, business.phone, business.category, business.website, business.email]
       );
 
-      // console.log(`ResultsID: ${result.insertId}`);
-      // console.log(`Result:`, result);
-      if (result.insertId != null){
+      if (result[0].insertId != null){
         res.status(201).json({
-          id: result.insertId,
+          id: result[0].insertId,
           links: {
-            business: `/businesses/${result.insertId}`
+            business: `/businesses/${result[0].insertId}`
           }
         });
       } else {
@@ -120,10 +121,14 @@ router.get('/:businessid', async function (req, res, next) {
     const [ results ] = await getPool().query(`
     SELECT * FROM Businesses WHERE BusinessID = ?`, [businessid]);
 
-    // console.log(`Results:`, results);
-    // console.log(`Results Length:`, results.length);
+    const [ reviewsResults ] = await getPool().query(
+      `SELECT * FROM Reviews WHERE BusinessID = ?`, [businessid]
+    );
+
+    const [ photosResults ] = await getPool().query(`
+    SELECT * FROM Photos WHERE BusinessID = ?`, [businessid]);
+
     if (results[0].BusinessID == businessid) {
-      // console.log('if');
       res.status(200).json({
         business_id: results[0].BusinessID,
         owner_id: results[0].OwnerID,
@@ -135,10 +140,11 @@ router.get('/:businessid', async function (req, res, next) {
         phone: results[0].Phone,
         category: results[0].Category,
         website: results[0].Website,
-        email: results[0].Email
+        email: results[0].Email,
+        reviews: reviewsResults,
+        photos: photosResults,
     })
     } else {
-      // console.log('else');
       next();
     }
 
@@ -173,8 +179,6 @@ router.put('/:businessid', async function (req, res, next) {
       fieldValues.push(businessid);
 
       const result = await getPool().query(sql, fieldValues);
-      // console.log(`Affected Rows: ${result.affectedRows}`);
-      // console.log(`Result[0] Affected Rows: ${result[0].affectedRows}`);
       if (result[0].affectedRows == 1) {
         res.status(200).json({
           links: {
@@ -199,12 +203,9 @@ router.put('/:businessid', async function (req, res, next) {
  */
 router.delete('/:businessid', async function (req, res, next) {
   const businessid = parseInt(req.params.businessid);
-  // console.log(`BusinessID: ${businessid}`);
 
   try {
     const result = await getPool().query(`DELETE FROM Businesses WHERE BusinessID = ?`, [businessid]);
-
-    // console.log(`Affected Rows: ${result[0].affectedRows}`);
 
     if (result[0].affectedRows > 0) {
       res.status(200).json({"Deleted": `Business with ID ${businessid} has been deleted`});
