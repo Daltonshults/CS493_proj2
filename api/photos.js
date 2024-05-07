@@ -13,13 +13,8 @@ exports.photos = photos;
 const photoSchema = {
   userid: { required: true },
   businessid: { required: true },
-  imageURL: { required: true },
   caption: { required: false }
 };
-
-
-// mysqlPool.query = util.promisify(mysqlPool.query);
-
 
 /*
  * Route to create a new photo.
@@ -27,16 +22,15 @@ const photoSchema = {
 router.post('/', async function (req, res, next) {
   if (validateAgainstSchema(req.body, photoSchema)) {
     const photo = extractValidFields(req.body, photoSchema);
-    // console.log(photo);
     try {
-      // console.log("Try");
+
       const result = await getPool().query(
-        `INSERT INTO Photos (UserID, BusinessID, ImageURL, Caption) VALUES (?, ?, ?, ?)`, [
+        `INSERT INTO Photos (UserID, BusinessID, Caption) VALUES (?, ?, ?)`, [
           photo.userid,
           photo.businessid,
-          photo.imageURL,
-          photo.caption]
+          photo.caption || ""]
       );
+
       if (result[0].insertId != null) {
         res.status(201).json({
           id: photo.id,
@@ -49,8 +43,10 @@ router.post('/', async function (req, res, next) {
         next();
       }
     } catch (err) {
-      next();
+      res.status(404).json({"error": `${err}`});
     }
+  } else {
+    next();
   }
 });
 
@@ -61,26 +57,18 @@ router.get('/:photoID', async function (req, res, next) {
   const photoID = parseInt(req.params.photoID);
 
   try {
-    // console.log("PhotoId: ", photoID);
-    // console.log("Try");
+
     const result = await getPool().query(
       `SELECT * FROM Photos WHERE PhotoID = ?`, [photoID]
     );
-    // console.log("Result below:")
-    // console.log(result)
-    // console.log(`\n\nResult[0][0]`)
-    // console.log(result[0][0]);
-    // console.log(`\nResult[0] ${result[0].PhotoID}`);
-    // console.log(`\nResult: ${result.PhjotoID}`);
+
     if (result[0][0].PhotoID == photoID) {
       res.status(200).json(result[0][0]);
     } else {
-      // console.log("\nElse");
       next();
     }
     
   } catch (err) {
-    // console.log(`Error: ${err}`);
     next();
   }
 });
@@ -90,11 +78,8 @@ router.get('/:photoID', async function (req, res, next) {
  */
 router.put('/:photoID', async function (req, res, next) {
   const photoID = parseInt(req.params.photoID);
-  // console.log(`PhotoID: ${photoID}`);
   try {
-    // console.log(`ValidateWithPartialSchema: ${validateWithPartialSchema(req.body, photoSchema)}`);
     if (validateWithPartialSchema(req.body, photoSchema)) {
-      // console.log("Validated");
       const photo = extractValidFields(req.body, photoSchema);
       const fieldNames = Object.keys(photo);
       const fieldValues = Object.values(photo);
@@ -134,14 +119,10 @@ router.put('/:photoID', async function (req, res, next) {
  */
 router.delete('/:photoID', async function (req, res, next) {
   const photoID = parseInt(req.params.photoID);
-  // console.log(`PhotoID: ${photoID}`);
-
   try {
     const result = await getPool().query(
       `DELETE FROM Photos WHERE PhotoID = ?`, [photoID]
     );
-
-    // console.log(`Affected Rows: ${result[0].affectedRows}`);
     if (result[0].affectedRows > 0) {
       res.status(200).json({"Deleted": `Photo with ID ${photoID} has been deleted`});
     } else {
